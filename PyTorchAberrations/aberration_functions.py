@@ -1,4 +1,5 @@
 import torch
+from torch.nn.functional import conv2d, conv_transpose2d
 import numpy as np
 
 def complex_matmul(A,B):
@@ -21,10 +22,26 @@ def complex_mul(A,B):
     return torch.stack((A[...,0].mul(B[...,0])-A[...,1].mul(B[...,1]),
                     A[...,0].mul(B[...,1])+A[...,1].mul(B[...,0])),dim=-1)
 
+def complex_exp(X):
+    return torch.cos(X).type(torch.complex64) +\
+           1j*torch.sin(X).type(torch.complex64)
 
 def pi2_shift(A):
     return torch.stack((-A[...,1],A[...,0]),dim=-1)
 
+def apply_complex_2(f, A, B, *args, **kwargs):
+    assert A.dtype == B.dtype
+    dtype = A.dtype
+    return f(A.real, B.real, *args, **kwargs).type(dtype) \
+           - f(A.imag, B.imag, *args, **kwargs).type(dtype) \
+           + 1j*f(A.real, B.imag, *args, **kwargs).type(dtype) \
+           + 1j*f(A.imag, B.real, *args, **kwargs).type(dtype)
+
+def complex_conv2d(A, B, *args, **kwargs):    
+    return apply_complex_2(conv2d, A, B, *args, **kwargs)
+
+def complex_conv_transpose2d(A, B, *args, **kwargs):    
+    return apply_complex_2(conv_transpose2d, A, B, *args, **kwargs)
 
 def conjugate(A):
     return torch.stack((A[...,0],-A[...,1]), dim=-1)
@@ -62,6 +79,13 @@ def crop_center(input, size):
     start_x = x//2-(size//2)
     start_y = y//2-(size//2)
     return input[:,start_x:start_x+size,start_y:start_y+size,...]
+
+def crop_center2(X,cx,cy):
+    x = X.shape[-2]
+    y = X.shape[-1]
+    startx = x//2 - cx//2
+    starty = y//2 - cy//2
+    return  X[...,starty:starty+cx, startx:startx+cy]
 
 def pt_to_cpx(A):
     return np.array(A[...,0])+1j*np.array(A[...,1])

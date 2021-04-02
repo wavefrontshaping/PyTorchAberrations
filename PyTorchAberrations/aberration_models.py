@@ -4,6 +4,7 @@ from torch.nn import Module, Sequential, Identity
 from torch.nn import ZeroPad2d
 from PyTorchAberrations.aberration_layers import ComplexDeformation
 from PyTorchAberrations.aberration_layers import ComplexZernike, ComplexScaling
+from PyTorchAberrations.aberration_layers import FreeSpacePropagation
 from PyTorchAberrations.aberration_functions import crop_center, complex_fftshift
 from PyTorchAberrations.aberration_functions import complex_ifftshift, conjugate, normalize
 from PyTorchAberrations.aberration_functions import complex_fft, complex_ifft
@@ -19,17 +20,20 @@ class AberrationModes(torch.nn.Module):
                      padding_coeff = 0.,
                      list_zernike_ft = list(range(3)),
                      list_zernike_direct = list(range(3)),
+                     propagation = False,
                      deformation = 'single'):
         super(AberrationModes, self).__init__()
         self.abberation_output = Aberration(onpoints,
                                             list_zernike_ft = list_zernike_ft,
                                             list_zernike_direct = list_zernike_direct, 
                                             padding_coeff = padding_coeff,
+                                            propagation = propagation,
                                             deformation = deformation)
         self.abberation_input = Aberration(inpoints,
                                             list_zernike_ft = list_zernike_ft,
                                             list_zernike_direct = list_zernike_direct, 
                                             padding_coeff = padding_coeff,
+                                            propagation = propagation,
                                             deformation = deformation)
         self.inpoints = inpoints
         self.onpoints = onpoints
@@ -58,6 +62,7 @@ class Aberration(torch.nn.Module):
                  list_zernike_ft,
                  list_zernike_direct,
                  padding_coeff = 0., 
+                 propagation = False,
                  deformation = 'single',
                  features = None):
         # Here we define the type of Model we want to be using, the number of polynoms and if we want to implement a deformation.
@@ -83,6 +88,9 @@ class Aberration(torch.nn.Module):
             self.deformation = ComplexScaling()
         else:
             self.deformation = Identity()
+            
+        self.propagation = FreeSpacePropagation(dx = torch.tensor([2.]), 
+                                                lambda_ = torch.tensor([1.])) if propagation else None
         
         self.zernike_ft = Sequential(*(ComplexZernike(j=j + 1) for j in list_zernike_ft))
         self.zernike_direct = Sequential(*(ComplexZernike(j=j + 1) for j in list_zernike_direct))
@@ -91,8 +99,24 @@ class Aberration(torch.nn.Module):
     def forward(self,input):
         assert(input.shape[1] == input.shape[2])
         
+        
+        input = torch.view_as_complex(input)
+        # free-space propagation
+        print(f'>>>{input.shape=}')
+        print(self.propagation(input[0,...][None,None,...]).shape)
+        if self.propagation:
+#             print(input.dtype)
+            input = torch.cat(
+                    [self.propagation(input[i,...][None,None,...]) for i in range(input.shape[0])],
+                    dim = 1
+                 )
+#             print('ok')
+            input = input.squeeze(0)
+
+        print(f'{input.shape=}', '---')
+        
         # padding
-        input = self.pad(torch.view_as_complex(input))
+        input = self.pad(input)
 
         # scaling
         input = self.deformation(input)

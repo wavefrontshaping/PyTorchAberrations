@@ -1,9 +1,13 @@
 import torch
 from torch.nn import Module, ZeroPad2d
-from PyTorchAberrations.aberration_functions import complex_mul, conjugate, pi2_shift
+from PyTorchAberrations.aberration_functions import complex_mul, conjugate
+from PyTorchAberrations.aberration_functions import pi2_shift, complex_exp, crop_center2
+from PyTorchAberrations.aberration_functions import complex_conv2d, complex_conv_transpose2d
+
+from torch.nn.functional import conv2d
 
 
-
+PI = 3.14159265358979323846264338327950288419716939937510582
 
 
 ################################################################
@@ -80,22 +84,6 @@ class ComplexZernikeFunction(torch.autograd.Function):
         
         ctx.save_for_backward(input, alpha, F)
         output = input*weight
-#         output = torch.view_as_real(output)
-        
-        
-#         weight = torch.stack((torch.cos(alpha*F),
-#                              torch.sin(alpha*F)), dim = -1)
-#         ctx.save_for_backward(input, weight, alpha, F)
-        
-#         output = complex_mul(input,weight)
-        
-            
-        
-        
-#         print(input.dtype)
-#         print(alpha.dtype)
-#         print('++'*100)
-        
         return output
     
     @staticmethod
@@ -106,40 +94,107 @@ class ComplexZernikeFunction(torch.autograd.Function):
         
         grad_input = grad_alpha = None
         if ctx.needs_input_grad[0]:
-#             grad_input = torch.view_as_complex(grad_output)*weight.conj()
             grad_input = grad_output*weight.conj()
-#             pass
-
 
         if ctx.needs_input_grad[1]:
-            pass
             grad_alpha = torch.sum(grad_output*(1j*F*weight*input).conj()).real
-#             print(grad_alpha.dtype)
-#             print('*'*410)
-#             grad_alpha.imag = 0.
             grad_alpha.unsqueeze_(0)
             
         return grad_input, grad_alpha, None
-#         return torch.view_as_real(grad_input), grad_alpha, None
     
+
+class FreeSpacePropagationFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, z, dx, lambda_): 
+        
+        real_dtype = input.real.dtype
+        
+        k = 2*PI/lambda_
+        
+        # c determines the size of the kernel, to allow to have a resolution
+        # of the final image after convolution the same as the input, 
+        # we need c = 2
+        c = 2
+        
+        nx = torch.arange(0,c*input.shape[-2]*dx, dx, dtype = real_dtype)
+        ny = torch.arange(0,c*input.shape[-1]*dx, dx, dtype = real_dtype)
+        
+        # to avoid the singularity for z = 0 and R = 0
+        eps = 1e-4
+
+        X0 = .5*dx*(c*input.shape[-2]+eps)
+        Y0 = .5*dx*(c*input.shape[-1]+eps)
+
+        # X, Y grid
+        X,Y = torch.meshgrid(nx,ny)
+        X = X.to(input.device)-X0
+        Y = Y.to(input.device)-Y0
+        
+        # polar coordinates for each position on the grid
+        R = torch.sqrt(X**2+Y**2+z**2)
+        RHO = torch.sqrt(X**2+Y**2)
+        THETA = torch.atan2(RHO, z)
+        
+        
+        # kernel for Huygens-Fresnel 
+        kernel = 1./R*complex_exp(k*R)
+        kernel = kernel[None,None,...]
+        
+        # inclination factor for  Rayleigh-Sommerfeld
+        K = torch.cos(THETA)
+        
+        # save stuff for gradient computation during backward
+        ctx.save_for_backward(input, kernel, K, z, R, THETA, RHO, k)      
+
+        output = complex_conv2d(K*kernel, input, stride = 1)
+    
+        return output
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, kernel, K, z, R, THETA, RHO, k = ctx.saved_tensors
+        grad_input = grad_z = None
+        if ctx.needs_input_grad[0]:
+            # gradient wrt input
+            # gradient of conv is conv_transpose
+            grad_input = complex_conv_transpose2d(K*kernel,grad_output.flip(-1,-2).conj())
+            # take only the center part to match input/output size
+            grad_input = crop_center2(grad_input,input.shape[-2],input.shape[-1]).conj()
+            
+        if ctx.needs_input_grad[1]:
+            # gradient wrt distance z
+            grad_z = complex_conv_transpose2d(input,grad_output.conj())
+            # derivative of the kernel
+            grad_kernel = kernel*(1j*k-1./R[None,None,...])*z/R[None,None,...]
+            grad_K = torch.sin(THETA)*1/(1+z**2/RHO[None,None,...]**2)*1/RHO
+            grad_z *= (grad_kernel*K+grad_K*kernel)
+            grad_z = grad_z.conj().real.type(z.dtype)
+            
+        # the last two input dx and lambda_ are supposed to be fixed (requires_grad = False),
+        # we do not compute the gradient
+        return grad_input, grad_z, None, None
     
 
 #######################################################
 #################### MODULES ##########################
 #######################################################
 
-# class ComplexZeroPad2d(Module):
-#     '''
-#     Apply zero padding to a batch of 2D complex images (or matrix)
-#     '''
-#     def __init__(self, padding):
-#         super(ComplexZeroPad2d, self).__init__()
-#         self.pad_r = ZeroPad2d(padding)
-#         self.pad_i = ZeroPad2d(padding)
+class FreeSpacePropagation(Module):
+    '''
+    Layer representing free-space propagation.
+    Only one parameter, the propagation distance z, is learned.
+    Initial value is 0.
+    '''
+    def __init__(self, dx, lambda_, z_init_value = 0.):
+        super(FreeSpacePropagation, self).__init__()
+        self.z = torch.nn.Parameter(torch.tensor(z_init_value), requires_grad=True)
+        self.dx = torch.tensor(dx)
+        self.dx._requires_grad = False
+        self.lambda_ = torch.tensor(lambda_)
+        self.lambda_._requires_grad = False
 
-#     def forward(self,input):
-#         return torch.stack((self.pad_r(input[...,0]), 
-#                            self.pad_i(input[...,1])), dim = -1)     
+    def forward(self, input):
+        return FreeSpacePropagationFunction.apply(input, self.z, self.dx, self.lambda_)
 
 class ComplexZernike(Module):
     '''
