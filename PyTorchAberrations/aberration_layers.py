@@ -4,9 +4,10 @@ from PyTorchAberrations.aberration_functions import complex_mul, conjugate
 from PyTorchAberrations.aberration_functions import pi2_shift, complex_exp, crop_center2
 from PyTorchAberrations.aberration_functions import complex_conv2d, complex_conv_transpose2d
 
+from torch.nn import ConvTranspose2d
 from torch.nn.functional import conv2d
 
-
+from math import ceil
 PI = 3.14159265358979323846264338327950288419716939937510582
 
 
@@ -212,6 +213,59 @@ class ComplexZernike(Module):
 
     def forward(self, input):
         return ComplexZernikeFunction.apply(input, self.alpha, self.j)
+    
+    
+from PyTorchAberrations.aberration_functions import complex_exp, crop_center2
+
+class PhasePlane(Module):
+    """
+    Layers that simulate the transmission through a thin diffuser.
+    """
+    
+    def __init__(self, 
+                 shape, 
+                 corr_length, 
+                 dx, init_to_zero = True,
+                 overlap_coeff = 2.):
+        super(PhasePlane, self).__init__()
+        
+        self.shape = shape
+        sigma_k = .5*corr_length/dx
+        # create the kernel (Gaussian)
+        n_k = int(5*sigma_k)
+        # overlap_coeff determines how much neighbouring cells overlaps
+        dilation = int(sigma_k*overlap_coeff)
+        kernel_size = [ceil(s/(dilation)-1) for s in shape]
+        
+        x_k = torch.arange(n_k)
+        X,Y = torch.meshgrid(x_k,x_k)
+        X0 = Y0 = n_k/2-.5
+        Rsq = (X-X0)**2+(Y-Y0)**2
+        self.K = torch.exp(-Rsq/(2*sigma_k**2))[None,None,...]
+        
+        self.convt = ConvTranspose2d(
+                        in_channels=1,
+                        out_channels=1,
+                        dilation=dilation,
+                        kernel_size = kernel_size
+                     )
+        
+        if init_to_zero:
+            # initialize weight (phase) to zero
+            self.convt.weight.data.fill_(0.)    
+        else:
+            # random phase from uniform distribution between 0 and 2pi
+            torch.nn.init.uniform_(self.convt.weight, 0., 2*PI)
+
+        
+    def forward(self,input):
+        # get the mask of phase value
+        phase_plane = self.convt(self.K)
+        print(phase_plane.shape)
+        phase_plane = crop_center2(phase_plane, self.shape[0], self.shape[1])
+        # multiply input field by the complex phase plane contributions
+        input = input*complex_exp(phase_plane)
+        return input
 
 class ComplexScaling(Module):
     '''
