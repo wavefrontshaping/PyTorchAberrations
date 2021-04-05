@@ -123,8 +123,8 @@ class FreeSpacePropagationFunction(torch.autograd.Function):
         # to avoid the singularity for z = 0 and R = 0
         eps = 1e-4
 
-        X0 = .5*dx*(c*input.shape[-2]+eps)
-        Y0 = .5*dx*(c*input.shape[-1]+eps)
+        X0 = .5*dx*(c*input.shape[-2]+eps)-1.
+        Y0 = .5*dx*(c*input.shape[-1]+eps)-1.
 
         # X, Y grid
         X,Y = torch.meshgrid(nx,ny)
@@ -148,6 +148,7 @@ class FreeSpacePropagationFunction(torch.autograd.Function):
         ctx.save_for_backward(input, kernel, K, z, R, THETA, RHO, k)      
 
         output = complex_conv2d(K*kernel, input, stride = 1)
+        output = output.flip(-1,-2)
     
         return output
     
@@ -158,13 +159,13 @@ class FreeSpacePropagationFunction(torch.autograd.Function):
         if ctx.needs_input_grad[0]:
             # gradient wrt input
             # gradient of conv is conv_transpose
-            grad_input = complex_conv_transpose2d(K*kernel,grad_output.flip(-1,-2).conj())
+            grad_input = complex_conv_transpose2d(K*kernel,grad_output.conj())
             # take only the center part to match input/output size
             grad_input = crop_center2(grad_input,input.shape[-2],input.shape[-1]).conj()
             
         if ctx.needs_input_grad[1]:
             # gradient wrt distance z
-            grad_z = complex_conv_transpose2d(input,grad_output.conj())
+            grad_z = complex_conv_transpose2d(input,grad_output.flip(-1,-2).conj())
             # derivative of the kernel
             grad_kernel = kernel*(1j*k-1./R[None,None,...])*z/R[None,None,...]
             grad_K = torch.sin(THETA)*1/(1+z**2/RHO[None,None,...]**2)*1/RHO
@@ -261,7 +262,6 @@ class PhasePlane(Module):
     def forward(self,input):
         # get the mask of phase value
         phase_plane = self.convt(self.K)
-        print(phase_plane.shape)
         phase_plane = crop_center2(phase_plane, self.shape[0], self.shape[1])
         # multiply input field by the complex phase plane contributions
         input = input*complex_exp(phase_plane)
