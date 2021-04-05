@@ -117,8 +117,8 @@ class FreeSpacePropagationFunction(torch.autograd.Function):
         # we need c = 2
         c = 2
         
-        nx = torch.arange(0,c*input.shape[-2]*dx, dx, dtype = real_dtype)
-        ny = torch.arange(0,c*input.shape[-1]*dx, dx, dtype = real_dtype)
+        nx = torch.arange(0,c*input.shape[-2]*dx-1, dx, dtype = real_dtype)
+        ny = torch.arange(0,c*input.shape[-1]*dx-1, dx, dtype = real_dtype)
         
         # to avoid the singularity for z = 0 and R = 0
         eps = 1e-4
