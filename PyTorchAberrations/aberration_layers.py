@@ -266,6 +266,11 @@ class PhasePlane(Module):
         # multiply input field by the complex phase plane contributions
         input = input*complex_exp(phase_plane)
         return input
+    
+    def get_phase_map(self):
+        phase_plane = self.convt(self.K)
+        phase_plane = crop_center2(phase_plane, self.shape[0], self.shape[1])
+        return phase_plane
 
 class ComplexScaling(Module):
     '''
