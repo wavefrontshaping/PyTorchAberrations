@@ -200,7 +200,7 @@ class FreeSpacePropagation(Module):
 
 class ComplexZernike(Module):
     '''
-    Layer that apply a complex Zernike polynomial to the phase of a batch 
+    Layer that applies a complex Zernike polynomial to the phase of a batch 
     of compleximages (or a matrix).
     Only one parameter, the strenght of the polynomial, is learned.
     Initial value is 0.
@@ -220,7 +220,7 @@ from PyTorchAberrations.aberration_functions import complex_exp, crop_center2
 
 class PhasePlane(Module):
     """
-    Layers that simulate the transmission through a thin diffuser.
+    Layers that simulates the transmission through a thin diffuser.
     """
     
     def __init__(self, 
