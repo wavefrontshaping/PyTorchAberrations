@@ -34,10 +34,10 @@ def zernike_Z(j, X, Y):
             F = (8.**(1/2))*torch.mul(R**3, torch.sin(3.*THETA))
         elif j == 7:
             # Vertical coma
-            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.sin(3.*THETA))
+            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.sin(THETA))
         elif j == 8:
             # Horizontal coma 
-            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.cos(3.*THETA))
+            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.cos(THETA))
         elif j == 9:
             # Oblique trefoil 
             F = (8.**(1/2))*torch.mul(R**3, torch.cos(3.*THETA))
