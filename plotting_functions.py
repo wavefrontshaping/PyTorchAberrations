@@ -124,3 +124,99 @@ def close_loop_edges(edges):
         loop_list.append(np.array(loop))
 
     return loop_list
+
+
+ZERNIKE_NAMES = [
+    'dilat',
+    'ft_tilt_H', 'ft_tilt_V',
+    'ft_astigm_H', 'ft_defoc', 'ft_astigm_V',
+    'ft_tref_V', 'ft_coma_V', 'ft_coma_H', 'ft_tref_H',
+    'tilt_H', 'tilt_V',
+    'astigm_H', 'defoc', 'astigm_V',
+    'tref_V', 'coma_V', 'coma_H', 'tref_H',
+    'quad_H', 'sec_astigm_H', 'spherical', 'sec_astigm_V', 'quad_V',
+]
+
+
+def getZernikeCoefs(states):
+    '''Get the list of Zernike coefficients from a model state_dict.'''
+    import torch
+    return [torch.Tensor.cpu(states[name]).numpy()[0] for name in states.keys()]
+
+
+def showZernikeCoefs(
+    zernike_coefs_list,
+    labels=None,
+    emphasis=False,
+    thresh=10,
+    title=None,
+    names=None,
+    n_ft=9,
+    n_direct=14,
+    ax=None,
+    **kwargs
+):
+    '''Display the amplitude of every Zernike coefficient of a fitted model.
+
+    `zernike_coefs_list` may be a single sequence of coefficients or a list of such
+    sequences, in which case they are overlaid.
+    '''
+    names = list(names if names is not None else ZERNIKE_NAMES)
+    n = len(names)
+
+    # accept either one set of coefficients or a list of sets
+    if len(zernike_coefs_list) and np.isscalar(zernike_coefs_list[0]):
+        zernike_coefs_list = [zernike_coefs_list]
+
+    if labels is not None and len(labels) != len(zernike_coefs_list):
+        raise ValueError('`labels` must have one entry per set of coefficients')
+    for coefs in zernike_coefs_list:
+        if len(coefs) != n:
+            raise ValueError(
+                f'got {len(coefs)} coefficients but {n} names; pass `names=` if the '
+                'model does not use the default 9 + 14 polynomials')
+
+    important = []
+    if emphasis:
+        important = [i for i in range(n) if np.abs(zernike_coefs_list[0][i]) > thresh]
+
+    if ax is None:
+        fig = plt.figure(figsize=(12, 7))
+        ax1 = fig.add_subplot(111)
+    else:
+        ax1, fig = ax, ax.figure
+
+    x = np.arange(n)
+    for ind, coefs in enumerate(zernike_coefs_list):
+        ax1.plot(x, coefs, 'o', label=labels[ind] if labels else None, **kwargs)
+    if labels:
+        ax1.legend()
+
+    # set_xticks before set_xticklabels: recent matplotlib warns otherwise and the
+    # labels can end up on the wrong ticks
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(names, rotation=40, ha='right')
+    ax1.grid(axis='x', ls=':')
+    ax1.set_xlabel('Name of correction function')
+    ax1.set_ylabel('Amplitude of correction')
+
+    ylims, xlims = ax1.get_ylim(), ax1.get_xlim()
+    if important:
+        ax1.vlines(important, ymin=ylims[0], ymax=ylims[1], ls='dashed')
+    ax1.hlines([-thresh, thresh], xmin=xlims[0], xmax=xlims[1], ls='dotted')
+    ax1.set_ylim(*ylims)
+    ax1.set_xlim(*xlims)
+
+    ax2 = ax1.twiny()
+    ax2.set_xlim(ax1.get_xlim())
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(['S'] + list(range(2, n_ft + 2)) + list(range(2, n_direct + 2)))
+    ax2.set_xlabel('Index of correction function')
+
+    for i in important:
+        ax1.get_xticklabels()[i].set_color('red')
+        ax2.get_xticklabels()[i].set_color('red')
+
+    ax1.set_title(title or 'Zernike Coefficients values', pad=38)
+    fig.tight_layout()
+    return fig, ax1, important
