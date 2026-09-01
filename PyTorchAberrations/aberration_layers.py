@@ -127,7 +127,7 @@ class ComplexScaling(Module):
                 ((1.+self.theta)*(torch.tensor([1, 0., 0., 0., 1, 0.],
                                          dtype=input.dtype).to(input.device))
                 ).reshape((2,3)).expand((input.shape[0],2,3)), 
-                                 input.size())                      
+                                 input.size(), align_corners=True)                      
                                          
             return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)).contiguous())
         
@@ -150,7 +150,7 @@ class ComplexDeformation(Module):
                 ((1.+self.theta).mul(torch.tensor([1, 0., 0., 0., 1, 0.],
                                          dtype=input.dtype).to(input.device))
                 ).reshape((2,3)).expand((input.shape[0],2,3)), 
-                                 input.size())                 
+                                 input.size(), align_corners=True)                 
 
             return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)))
 
