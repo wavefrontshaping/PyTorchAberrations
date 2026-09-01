@@ -13,7 +13,9 @@
   transmission matrix rather than assumed
 - Add `PyTorchAberrations/plotting_functions.py` (`colorize`, `logplotTM`,
   `plot_outlines`)
-- Add sample data in `data/` (`TM_pix.npy`, `modes_hd.npz`)
+- Add sample data in `example/data/` (`TM_pix.npy`, `modes_hd.npz`)
+- Rewrite the example notebook: it now tracks the block-diagonal energy during the fit as
+  well as the conversion ratio, and states the expected result so a run can be checked
 
 ### Bug correction
 
@@ -48,8 +50,8 @@
   `indexing='ij'`, which warns today and is scheduled to become an error
 - Repository layout, so that the package is self-contained once installed:
   - `scaling_functions.py` and `plotting_functions.py` moved into `PyTorchAberrations/`
-  - `Data/` renamed to `data/`
-  - the demo notebook moved to `notebooks/`
+  - the demo notebook and its data moved to `example/` and `example/data/`
+  - unit tests in `tests/`
 - Known limitation, left unchanged: `ComplexDeformation` multiplies its parameter vector
   by `[1, 0, 0, 0, 1, 0]`, so the two shears and the two shifts have exactly zero
   gradient and cannot be learned, despite the docstring announcing 6 parameters. Only
