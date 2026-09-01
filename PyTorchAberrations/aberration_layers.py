@@ -98,7 +98,7 @@ class ComplexZernike(Module):
         ny = torch.arange(0,2,2./input.shape[2], dtype = torch.float32)
 
         X0, Y0 = 1.+1./input.shape[1], 1.+1./input.shape[2]
-        X,Y = torch.meshgrid(nx,ny)
+        X,Y = torch.meshgrid(nx,ny,indexing='ij')
         X = X.to(input.device)-X0
         Y = Y.to(input.device)-Y0
 
