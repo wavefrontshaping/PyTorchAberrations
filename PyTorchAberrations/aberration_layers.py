@@ -34,10 +34,10 @@ def zernike_Z(j, X, Y):
             F = (8.**(1/2))*torch.mul(R**3, torch.sin(3.*THETA))
         elif j == 7:
             # Vertical coma
-            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.sin(3.*THETA))
+            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.sin(THETA))
         elif j == 8:
             # Horizontal coma 
-            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.cos(3.*THETA))
+            F = (8.**(1/2))*torch.mul(3.*R**3-2.*R,torch.cos(THETA))
         elif j == 9:
             # Oblique trefoil 
             F = (8.**(1/2))*torch.mul(R**3, torch.cos(3.*THETA))
@@ -98,7 +98,7 @@ class ComplexZernike(Module):
         ny = torch.arange(0,2,2./input.shape[2], dtype = torch.float32)
 
         X0, Y0 = 1.+1./input.shape[1], 1.+1./input.shape[2]
-        X,Y = torch.meshgrid(nx,ny)
+        X,Y = torch.meshgrid(nx,ny,indexing='ij')
         X = X.to(input.device)-X0
         Y = Y.to(input.device)-Y0
 
@@ -127,7 +127,7 @@ class ComplexScaling(Module):
                 ((1.+self.theta)*(torch.tensor([1, 0., 0., 0., 1, 0.],
                                          dtype=input.dtype).to(input.device))
                 ).reshape((2,3)).expand((input.shape[0],2,3)), 
-                                 input.size())                      
+                                 input.size(), align_corners=True)                      
                                          
             return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)).contiguous())
         
@@ -150,7 +150,7 @@ class ComplexDeformation(Module):
                 ((1.+self.theta).mul(torch.tensor([1, 0., 0., 0., 1, 0.],
                                          dtype=input.dtype).to(input.device))
                 ).reshape((2,3)).expand((input.shape[0],2,3)), 
-                                 input.size())                 
+                                 input.size(), align_corners=True)                 
 
-            return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)))
+            return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)).contiguous())
 
