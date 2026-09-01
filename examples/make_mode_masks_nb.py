@@ -50,8 +50,7 @@ applied to a mode basis sampled as finely as you like.
    of the optimisation, *not* recomputed from the model.
 2. The same field from the **model at the native resolution**. It must reproduce the
    reference. This is the sanity check that the geometry is right.
-3. The same field from the **model at 3x the resolution**, and what happens when it is
-   brought back to the native grid.
+3. The same field from the **model at 3x the resolution**, over the same physical area.
 """)
 
 code(r"""
@@ -200,6 +199,12 @@ view on a 105x105 grid.
 Nothing about the fit is redone: the Zernike coefficients are reinterpreted on the finer
 grid — the direct-plane coordinates are unchanged in physical terms, the Fourier-plane
 ones cover a Nyquist band three times wider, so the pupil occupies a third of the domain.
+
+This is not an interpolation of the native mask. It is the same physical field computed on
+a grid fine enough that the deformation layer no longer has to guess between samples, so
+for driving a modulator it is the better object, not merely a smoother one. Sampled back
+down to 35x35 it differs from the native mask by about 3 % — that difference is the coarse
+grid's own interpolation error, and the `mode_masks` module docstring measures it.
 """)
 
 code(r"""
@@ -220,78 +225,7 @@ fig.suptitle('Same field of view, same physical field, three times the sampling'
 """)
 
 md(r"""
-## 5. Does the fine grid agree with the coarse one?
-
-On a grid `s` times finer with odd `s`, the native sample positions land at
-`field[(s-1)//2::s, (s-1)//2::s]`. Two cautions before comparing:
-
-* the module normalises each basis over the grid it was built on, so the same physical
-  field comes back `s` times smaller in amplitude on an `s` times finer grid — compare
-  *shapes*, each field divided by its own norm;
-* the answer is then about **3 %**, not the 1e-7 of section 3.
-
-That 3 % is **the native model's error, not the fine grid's**, and the table below is the
-evidence: `s = 3`, `5` and `7` agree with each other an order of magnitude better than any
-of them agrees with `s = 1`. The refined grids converge to a common answer; the coarse one
-is the outlier.
-
-The culprit is the deformation layer: `grid_sample` has to guess the field between
-samples, and a 37x37 padded array gives it much less to work with than a 111x111 one. The
-Zernike terms themselves transfer essentially exactly — the direct-plane ones to 1e-15,
-the Fourier-plane ones to 3e-3. (Before 0.3 this figure was 5 %; the deformation
-interpolated bilinearly.)
-""")
-
-code(r"""
-# the native sample positions of a field computed on an s-times-finer grid
-def on_native_grid(field, s):
-    return field[(s - 1) // 2::s, (s - 1) // 2::s]
-
-
-# each basis is normalised over its own grid, so compare shape, not amplitude
-def shape_err(x, ref):
-    return np.linalg.norm(x.ravel() / np.linalg.norm(x)
-                          - ref.ravel() / np.linalg.norm(ref))
-
-
-rows = []
-for s in [3, 5, 7]:
-    u_s = mm.mask_from_modes(a, side='in', resolution=s * N_in)
-    rows.append((s, on_native_grid(u_s, s)))
-
-print(f'{"grid":>12} {"vs the native reference":>24}')
-print(f'{f"{N_in}x{N_in}":>12} {shape_err(u_native, u_ref):>24.2e}   <- section 3')
-for s, u_s in rows:
-    print(f'{f"{s*N_in}x{s*N_in}":>12} {shape_err(u_s, u_ref):>24.2e}')
-
-print(f'\n{"pair":>12} {"agreement with each other":>26}')
-for (s1, u1), (s2, u2) in zip(rows, rows[1:]):
-    print(f'{f"s={s1} vs s={s2}":>12} {shape_err(u2, u1):>26.2e}')
-
-fig, ax = plt.subplots(figsize=(7.2, 4.4), layout='constrained')
-ax.semilogy([s for s, _ in rows], [shape_err(u, u_ref) for _, u in rows], 'o-',
-            label='against the native reference')
-ax.semilogy([s2 for (_, _), (s2, _) in zip(rows, rows[1:])],
-            [shape_err(u2, u1) for (_, u1), (_, u2) in zip(rows, rows[1:])], 's-',
-            label='against the next coarser refined grid')
-ax.axhline(shape_err(u_native, u_ref), color='k', ls='--', lw=1)
-ax.annotate('native vs the fit (section 3)', xy=(3, shape_err(u_native, u_ref)),
-            xytext=(4, 4), textcoords='offset points', fontsize=9)
-ax.set_xlabel('oversampling factor $s$')
-ax.set_ylabel('relative error on the field shape')
-ax.set_xticks([s for s, _ in rows])
-ax.grid(ls=':', alpha=0.6)
-ax.legend(fontsize=9, loc='center right')
-ax.set_title('The refined grids agree with each other, not with the coarse one',
-             fontsize=11)
-""")
-
-md(r"""
-So for driving a modulator the high-resolution mask is the one to use: it is not an
-interpolation of the native mask, it is the same physical field computed without the
-coarse grid's interpolation error.
-
-## 6. The other side, and the round trip
+## 5. The other side, and the round trip
 
 `side` selects which of the two `Aberration` sub-models is applied. Input and output see
 different aberrations and different native grids, so this is not cosmetic.
@@ -304,6 +238,12 @@ It offers two ways to do it, and the difference is instructive: `method='conj'` 
 code(r"""
 u_out = mm.mask_from_modes(a, side='out', resolution=2 * N_out)
 print(f'output side: native {N_out}x{N_out}, asked for {u_out.shape[0]}x{u_out.shape[1]}')
+
+# compare direction, not amplitude: each basis is normalised over its own grid
+def shape_err(x, ref):
+    return np.linalg.norm(x.ravel() / np.linalg.norm(x)
+                          - ref.ravel() / np.linalg.norm(ref))
+
 
 print(f'\n{"side":>5} {"resolution":>11} {"conj":>12} {"pinv":>12}')
 for side, n_native in [('in', N_in), ('out', N_out)]:
