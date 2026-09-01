@@ -152,5 +152,5 @@ class ComplexDeformation(Module):
                 ).reshape((2,3)).expand((input.shape[0],2,3)), 
                                  input.size(), align_corners=True)                 
 
-            return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)))
+            return torch.view_as_complex(torch.nn.functional.grid_sample(input, grid, align_corners=True).permute((0,2,3,1)).contiguous())
 
