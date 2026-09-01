@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PyTorchAberrations"
-version = "0.2"
+version = "0.3"
 description = "Differentiable aberration layers for PyTorch using Zernike polynomials."
 authors = [
     { name = "Sebastien M. Popoff", email = "sebastien.popoff@espci.psl.eu" },
     { name = "Maxime W. Matthes" },
     { name = "Rodrigo Gutierrez-Cuevas" },
 ]
-license = { text = "MIT" }
+license = { file = "LICENSE.md" }
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -19,7 +19,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics",
-    "License :: OSI Approved :: MIT License",
+    "License :: CeCILL-B Free Software License Agreement (CECILL-B)",
 ]
 dependencies = [
     "torch>=1.8",

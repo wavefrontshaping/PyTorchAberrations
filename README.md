@@ -26,14 +26,14 @@ Requires `torch`, `numpy`, `scipy` and `matplotlib`. Extras: `[test]` for `pytes
 
 ## Getting started
 
-[`example/Demo_correction_aberration.ipynb`](example/Demo_correction_aberration.ipynb)
+[`examples/Demo_correction_aberration.ipynb`](examples/Demo_correction_aberration.ipynb)
 runs the whole thing on the bundled dataset, in about 30 s on a CPU. On that data the
 correction takes the transmission matrix from
 
 | | conversion ratio | diagonal ratio |
 |---|---|---|
 | before | 60.2 % | 16.4 % |
-| after | 92.4 % | 89.1 % |
+| after | 92.6 % | 91.2 % |
 
 The *conversion ratio* is the fraction of the pixel-basis TM energy surviving the
 projection onto the mode basis, and is what the cost maximises. The *diagonal ratio* is
@@ -48,10 +48,35 @@ PyTorchAberrations/      the package
   aberration_models.py     Aberration, AberrationModes
   cost_functions.py        norm_mode_to_norm_pix, energy_on_diagonal, normalize
   scaling_functions.py     resample a high-resolution mode set onto the pixel grids
+  mode_masks.py            mode amplitudes -> modulator field, at any resolution
   plotting_functions.py    colorize, logplotTM, showZernikeCoefs
-example/                 notebook and its data
+examples/                notebooks and their data
 tests/                   pytest
 ```
+
+## Masks at an arbitrary resolution
+
+The fitted change-of-basis matrix lives on the pixel grid the transmission matrix was
+measured on — 35x35 and 41x41 for the bundled data. Those are rarely the grids you want
+to address a modulator with. Since the fitted model describes the *optics*, it can be
+applied to a mode basis sampled as finely as you like:
+
+```python
+from PyTorchAberrations.mode_masks import ModeMasks
+
+mm = ModeMasks.from_tm(model, profiles, TM_pix, pola_inout=(2, 2), padding_coeff=0.05)
+field = mm.mask_from_modes(coeffs, side='in', resolution=105)   # same area, 3x finer
+```
+
+[`examples/Demo_mode_masks.ipynb`](examples/Demo_mode_masks.ipynb) walks through it and
+checks the result against the fitted basis. Run
+`Demo_correction_aberration.ipynb` first: it writes the fit to
+`examples/data/fitted_correction.pt`, which is deliberately not tracked by git.
+
+Two things have to be right for a coefficient fitted on one grid to mean the same
+aberration on another — the sampling grid the fit actually used, and the rescaling of the
+Fourier-plane coordinates. Getting either wrong is a 56 % and a 69 % error respectively,
+on fields that look perfectly plausible. See the `mode_masks` module docstring.
 
 ## A note on the scaling step
 
